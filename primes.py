@@ -35,25 +35,8 @@ def isPrimitiveRoot(g, n):
             return True
     return False
 
-def diffeGen():
-    """Returns a valid Diffe-Hellman g and n where g is a primiive root of n
+#not sure if this belongs...
+def randomSecret():
+    """returns a number between 0 and 128, inclusive"""
+    return ord(os.urandom(1))//2
 
-    g will be 2 80% of the time and 7 20% of the time.
-
-    n will be between the 20th and 35th prime number.
-
-    Returns:
-      A tuple consisting of (g, n)
-    
-    """
-
-    gDecide = os.urandom(1))
-    nDecide = os.urandom(1))
-    if (gDecide < 205):
-        g = 2
-    else:
-        g = 7
-
-    
-
-diffeGen()
