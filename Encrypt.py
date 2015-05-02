@@ -186,15 +186,14 @@ class Locksmith:
       randNum (int) The secret
 
     """
-    def __init__(self,g,n,randNum=None):
+    def __init__(self,g,n,randNum):
         """
-        Initializes the Locksmith. Can take a randNum secret key as a parameter
-        or generate one.
+        Initializes the Locksmith. 
 
         Args:
             g(int): A primitive root of n 
             n(int): A prime number
-            randNum(int): Optional(will be generated otherwise), the secret 
+            randNum(int): the secret 
           
         """
         if randNum == None:
@@ -236,8 +235,71 @@ class Locksmith:
             raise ValueError("Key should only be calculated once.")
         self.keyCalced = True
         return (otherContribution**self.randNum) % self.n
+
+class VigLocksmith(Locksmith):
+    """"Geneterates a sequence of numbers from diffe-hellman to come up with a Vigenere Cipher Key
+
+    65 is added to keys to give letters
+
+    """
+
+    def __init__(self, g, n, randomNums):
+        """
+        Initializes the Vigenere Locksmith. 
+
+        Args:
+            g(int): A primitive root of n 
+            n(int): A prime number
+            randNum(int): List of secret nums. Length of randomNums must be same for both parties
+          
+        """
+        self.g =g
+        self.n = n
+        self.randomNums = randomNums
+        self.intermValCalced = False
+        self.keyCalced = False
+
+    def makeIntermediateVal(self):
+        """Makes the intermediate value/public key to send to other party
+
+        To discourage session key re-use, may only be called once.
+
+        Returns:
+          The intermediate value to be given to other party
+        """
+        if self.intermValCalced:
+            raise ValueError("Intermediate Value should only be calculated once.")
+        self.intermValCalced = True 
+        return [(self.g**randNum)%self.n for randNum in self.randomNums]
+
+    def makeKey(self, otherContribution):
+        """Creates a session key using secret list and contribution list from other party.
+
+        To discourage session key re-use, may only be called once.
+
+        Args:
+          otherContribution(list of ints): The result of other party's intermediate value 
+
+        Returns:
+          The session key as a string.
+        """
+        def convert(i):
+            """Adds 65 to integer i and returns the resulting character""" 
+            return chr(65+i)
+        if self.keyCalced:
+            raise ValueError("Key should only be calculated once.")
+        self.keyCalced = True
+        asNums = [(pair[1]**pair[0]) % self.n for pair in zip(self.randomNums, otherContribution)]
+        return "".join(map(convert,asNums))
         
-alice = Locksmith(5,23,6)
-bob = Locksmith(5,23,15)
-print(bob.makeKey(alice.makeIntermediateVal()))
-print(alice.makeKey(bob.makeIntermediateVal()))
+if __name__=="__main__":
+    alice = Locksmith(5,23,6)
+    bob = Locksmith(5,23,15)
+    #print(bob.makeKey(alice.makeIntermediateVal()))
+    #print(alice.makeKey(bob.makeIntermediateVal()))
+    #print(alice.makeIntermediateVal())
+    #print(bob.makeIntermediateVal())
+    vinny = VigLocksmith(5,23,[6,15])
+    maria = VigLocksmith(5,23,[15,6])
+    print(vinny.makeKey(maria.makeIntermediateVal()))
+    print(maria.makeKey(vinny.makeIntermediateVal()))
