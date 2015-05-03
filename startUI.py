@@ -1,24 +1,38 @@
 import tkinter
 import primes
+import threading
+import socket
+import encrypt
+import queue
+import sys
 
 class Application(tkinter.Frame):
     def __init__(self,master=None):
         tkinter.Frame.__init__(self,master)
-        self.chat = Chat(self)
-        self.chat.grid(row = 0, column = 0)
-        #self.setup = Setup(self)
-        #self.setup.grid(row = 0, column =0)
+        #self.chat = Chat(self)
+        #self.chat.grid(row = 0, column = 0)
+        self.setup = Setup(self, ("127.0.0.1",25123))
+        self.setup.grid(row = 0, column =0)
 
-class Chat(tkinter.Frame):
-    def __init__(self, master=None):
+    
+class Chat(tkinter.Frame): 
+    def __init__(self, soc, master=None):
         tkinter.Frame.__init__(self,master)
         self.createWidgets()
+        self.soc = soc
+        self.messageQueue = queue.Queue()
+        
+        self.listenerThread = StoppableThread(target=self.listenForMessages)
+        self.listenerThread.start()
+        print("GOT HERE!!!")
+        self.grid(row = 0, column=0)
+        self.postMessages()
 
     def createWidgets(self):
         self.text = tkinter.Text(self)
         self.text.config(state=tkinter.DISABLED)
         self.text.grid(row =0, column = 0, rowspan = 2, columnspan=6)
-
+        
         self.label = tkinter.Label(self,text="New Message: ")
         self.label.grid(row=2, column=0)
         
@@ -28,26 +42,68 @@ class Chat(tkinter.Frame):
         
         self.button = tkinter.Button(self)
         self.button["text"] = "Display!"
-        self.button["command"] = self.buttonClicked
+        self.button["command"] = self.sendMessage
         self.button.grid(row = 2, column=2)
 
-        
-    def buttonClicked(self):
-        self.text.config(state = tkinter.NORMAL)
-        self.text.insert(tkinter.END,self.entry.get()+"\n")
-        self.text.config(state = tkinter.DISABLED)
+    #posts own and sends over network    
+    def sendMessage(self):
+        messageToSend = self.entry.get()
+        self.soc.send(bytearray(messageToSend,"utf-8"))
+        self.messageQueue.put("You: " + messageToSend+"\n\n")
         self.entry.delete(0,tkinter.END)
 
+    #Have  to run this on main thread.
+    def postMessages(self):
+        while True:
+            self.update()
+            try:
+                #throws exception if message not received in 2 seconds 
+                message = self.messageQueue.get(False) 
+                self.text.config(state = tkinter.NORMAL)
+                self.text.insert(tkinter.END,message)
+                self.text.config(state = tkinter.DISABLED)
+            except queue.Empty:
+                pass 
+    
     def keyPress(self, event):
         c = event.char
         if c == "\r":
-            self.buttonClicked()
+            self.sendMessage()
 
+    def listenForMessages(self):
+        while True:
+            messageFromOther = self.soc.recv(4096)
+            print("receivedMessage: " + str(messageFromOther,"utf-8"))
+            self.messageQueue.put(b"Them: "+messageFromOther+b"\n\n")
+
+            
 class Setup(tkinter.Frame):
 
-    def __init__(self, master=None):
+    #socketParams is a tuple of (addr, port) 
+    def __init__(self, parent = None, socketParams=None, master=None):
         tkinter.Frame.__init__(self,master)
         self.createWidgets()
+        self.parent = parent
+        self.socketParams = socketParams
+        self.listeningSocket = socket.socket()
+        self.listenerThread = StoppableThread(target=self.listenForConnections)
+        self.listenerThread.start()
+        
+    def connectClicked(self):
+        if self.parent is not None:
+            
+            soc = socket.socket()
+            print("Address:"+self.urlBox.get().split(":")[0])
+            print("Port: " + str(int(self.urlBox.get().split(":")[1])))
+            soc.connect((self.urlBox.get().split(":")[0], int(self.urlBox.get().split(":")[1])))
+            self.listenerThread.stop()
+            self.listeningSocket.close()
+            print("SOCKET CLOSED")
+            self.parent.setup.grid_forget()
+            self.parent.chat = Chat(soc,self.parent)
+            self.parent.chat.grid(row = 0, column=0)
+
+            print ("CC-DONE")
     def createWidgets(self):
         self.title = tkinter.Label(self, text = "New Connection")
         self.title.grid(row = 0,column=0, columnspan=2)
@@ -61,9 +117,27 @@ class Setup(tkinter.Frame):
         self.urlBox = tkinter.Entry(self)
         self.urlBox.grid(row=2, column=1)
 
-        self.connectButton = tkinter.Button(self, text="Connect")
+        self.connectButton = tkinter.Button(self, text="Connect", command = self.connectClicked)
         self.connectButton.grid(row=3, column=1, sticky = tkinter.E)
 
+    def listenForConnections(self):
+        print("listening for connections")
+        if self.socketParams is not None:
+            try:
+                self.listeningSocket.bind(self.socketParams)
+                self.listeningSocket.listen(5)
+                cliSoc, p = self.listeningSocket.accept()
+                vi = encrypt.Vigenere((65,122), "A", False)
+                
+                self.grid_forget()
+                self.chat = Chat(cliSoc, self.parent)
+                self.parent.chat = chat
+                self.chat.grid(row=0, column=0)
+            except OSError:
+                #print("OS ERROR")
+                raise #We will close the socket from elsewhere which will cause exception
+            except:
+                raise
 class EncryptionParams(tkinter.Frame):
 
     def __init__(self, master=None):
@@ -96,9 +170,23 @@ class EncryptionParams(tkinter.Frame):
         self.secretBox.grid(row=4, column=1)
         self.secretBox.insert(0, primes.randomSecret())
 
+#Slightly modified from http://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread-in-python
+class StoppableThread(threading.Thread):
+    """Thread class with a stop() method. The thread itself has to check
+    regularly for the stopped() condition."""
+
+    def __init__(self, target=None):
+        super(StoppableThread, self).__init__(target=target)
+        self._stop = threading.Event()
+
+    def stop(self):
+        self._stop.set()
+
+    def stopped(self):
+        return self._stop.isSet()
         
 root = tkinter.Tk()
-root.wm_title("TEST")
+root.wm_title("Chat client")
 app = Application(master=root)
 app.grid(row=0, column=0)
 app.mainloop()
