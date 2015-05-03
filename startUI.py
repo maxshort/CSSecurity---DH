@@ -23,6 +23,7 @@ class Chat(tkinter.Frame):
         self.messageQueue = queue.Queue()
         
         self.listenerThread = StoppableThread(target=self.listenForMessages)
+        self.listenerThread.daemon = True
         self.listenerThread.start()
         print("GOT HERE!!!")
         self.grid(row = 0, column=0)
@@ -55,15 +56,18 @@ class Chat(tkinter.Frame):
     #Have  to run this on main thread.
     def postMessages(self):
         while True:
-            self.update()
             try:
-                #throws exception if message not received in 2 seconds 
+                self.update()
                 message = self.messageQueue.get(False) 
                 self.text.config(state = tkinter.NORMAL)
                 self.text.insert(tkinter.END,message)
                 self.text.config(state = tkinter.DISABLED)
             except queue.Empty:
-                pass 
+                pass
+            except: #most other exceptions mean that other client has closed
+                self.soc.close()
+                break
+            
     
     def keyPress(self, event):
         c = event.char
@@ -98,12 +102,10 @@ class Setup(tkinter.Frame):
             soc.connect((self.urlBox.get().split(":")[0], int(self.urlBox.get().split(":")[1])))
             self.listenerThread.stop()
             self.listeningSocket.close()
-            print("SOCKET CLOSED")
             self.parent.setup.grid_forget()
             self.parent.chat = Chat(soc,self.parent)
-            self.parent.chat.grid(row = 0, column=0)
+                        
 
-            print ("CC-DONE")
     def createWidgets(self):
         self.title = tkinter.Label(self, text = "New Connection")
         self.title.grid(row = 0,column=0, columnspan=2)
@@ -130,9 +132,7 @@ class Setup(tkinter.Frame):
                 vi = encrypt.Vigenere((65,122), "A", False)
                 
                 self.grid_forget()
-                self.chat = Chat(cliSoc, self.parent)
-                self.parent.chat = chat
-                self.chat.grid(row=0, column=0)
+                self.parent.chat = Chat(cliSoc, self.parent)
             except OSError:
                 #print("OS ERROR")
                 raise #We will close the socket from elsewhere which will cause exception
