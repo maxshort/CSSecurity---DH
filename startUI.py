@@ -11,7 +11,7 @@ class Application(tkinter.Frame):
         tkinter.Frame.__init__(self,master)
         #self.chat = Chat(self)
         #self.chat.grid(row = 0, column = 0)
-        self.setup = Setup(self, ("127.0.0.1",25124))
+        self.setup = Setup(self, ("127.0.0.1",25123))
         self.setup.grid(row = 0, column =0)
 
     
@@ -23,7 +23,7 @@ class Chat(tkinter.Frame):
         self.encrypter = encrypter
         self.messageQueue = queue.Queue()
         
-        self.listenerThread = StoppableThread(target=self.listenForMessages)
+        self.listenerThread = threading.Thread(target=self.listenForMessages)
         self.listenerThread.daemon = True
         self.listenerThread.start()
         self.grid(row = 0, column=0)
@@ -94,7 +94,8 @@ class Setup(tkinter.Frame):
         self.parent = parent
         self.socketParams = socketParams
         self.listeningSocket = socket.socket()
-        self.listenerThread = StoppableThread(target=self.listenForConnections)
+        self.listenerThread = threading.Thread(target=self.listenForConnections)
+        self.listenerThread.setDaemon(True)
         self.listenerThread.start()
         
     def connectClicked(self):
@@ -104,7 +105,6 @@ class Setup(tkinter.Frame):
             print("Address:"+self.urlBox.get().split(":")[0])
             print("Port: " + str(int(self.urlBox.get().split(":")[1])))
             soc.connect((self.urlBox.get().split(":")[0], int(self.urlBox.get().split(":")[1])))
-            self.listenerThread.stop()
             self.listeningSocket.close()
             secretKey = self.encryptionParams.secretBox.get()
             
@@ -200,20 +200,6 @@ class EncryptionParams(tkinter.Frame):
         self.secretBox.grid(row=4, column=1)
         self.secretBox.insert(0, encrypt.genVigKey(5)) 
 
-#Slightly modified from http://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread-in-python
-class StoppableThread(threading.Thread):
-    """Thread class with a stop() method. The thread itself has to check
-    regularly for the stopped() condition."""
-
-    def __init__(self, target=None):
-        super(StoppableThread, self).__init__(target=target)
-        self._stop = threading.Event()
-
-    def stop(self):
-        self._stop.set()
-
-    def stopped(self):
-        return self._stop.isSet()
         
 root = tkinter.Tk()
 root.wm_title("Chat client")
