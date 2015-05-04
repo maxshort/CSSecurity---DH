@@ -198,7 +198,7 @@ class EncryptionParams(tkinter.Frame):
 
         self.secretBox = tkinter.Entry(self)
         self.secretBox.grid(row=4, column=1)
-        self.secretBox.insert(0, primes.randomSecret()) 
+        self.secretBox.insert(0, encrypt.genVigKey(5)) 
 
 #Slightly modified from http://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread-in-python
 class StoppableThread(threading.Thread):
