@@ -11,21 +11,21 @@ class Application(tkinter.Frame):
         tkinter.Frame.__init__(self,master)
         #self.chat = Chat(self)
         #self.chat.grid(row = 0, column = 0)
-        self.setup = Setup(self, ("127.0.0.1",25123))
+        self.setup = Setup(self, ("127.0.0.1",25124))
         self.setup.grid(row = 0, column =0)
 
     
 class Chat(tkinter.Frame): 
-    def __init__(self, soc, master=None):
+    def __init__(self, soc, encrypter = None, master=None):
         tkinter.Frame.__init__(self,master)
         self.createWidgets()
         self.soc = soc
+        self.encrypter = encrypter
         self.messageQueue = queue.Queue()
         
         self.listenerThread = StoppableThread(target=self.listenForMessages)
         self.listenerThread.daemon = True
         self.listenerThread.start()
-        print("GOT HERE!!!")
         self.grid(row = 0, column=0)
         self.postMessages()
 
@@ -49,11 +49,13 @@ class Chat(tkinter.Frame):
     #posts own and sends over network    
     def sendMessage(self):
         messageToSend = self.entry.get()
-        self.soc.send(bytearray(messageToSend,"utf-8"))
+        if self.encrypter is not None:
+            self.soc.send(bytearray(self.encrypter.encrypt(messageToSend), "utf-8"))
         self.messageQueue.put("You: " + messageToSend+"\n\n")
         self.entry.delete(0,tkinter.END)
 
     #Have  to run this on main thread.
+    #Messages should be in plaintext by this point.
     def postMessages(self):
         while True:
             try:
@@ -77,8 +79,12 @@ class Chat(tkinter.Frame):
     def listenForMessages(self):
         while True:
             messageFromOther = self.soc.recv(4096)
-            print("receivedMessage: " + str(messageFromOther,"utf-8"))
-            self.messageQueue.put(b"Them: "+messageFromOther+b"\n\n")
+            messageFromOther = str(messageFromOther,"utf-8")
+            if self.encrypter is not None:
+                print("message from other original: "+messageFromOther)
+                messageFromOther = self.encrypter.decrypt(messageFromOther)
+                print("After decryption: " + messageFromOther)
+            self.messageQueue.put(messageFromOther)
 
             
 class Setup(tkinter.Frame):
@@ -102,9 +108,21 @@ class Setup(tkinter.Frame):
             soc.connect((self.urlBox.get().split(":")[0], int(self.urlBox.get().split(":")[1])))
             self.listenerThread.stop()
             self.listeningSocket.close()
+            secretKey = self.encryptionParams.secretBox.get()
+            
+            locksmith = encrypt.VigLocksmith(int(self.encryptionParams.gBox.get()), int(self.encryptionParams.nBox.get()),secretKey) 
+
+            
+            soc.send(bytearray(locksmith.makeIntermediateVal(), "utf-8"))
+            otherKey = str(soc.recv(4096), "utf-8")
+            print("KEY FROM OTHER: "+otherKey)
+            finalKey = locksmith.makeKey(otherKey)
+            print("FINAL KEY: "+finalKey)
+            vi = encrypt.Vigenere((65,122), finalKey, False)
+            
             self.parent.setup.grid_forget()
-            self.parent.chat = Chat(soc,self.parent)
-                        
+            self.parent.chat = Chat(soc, encrypter=vi, master=self.parent)
+
 
     def createWidgets(self):
         self.title = tkinter.Label(self, text = "New Connection")
@@ -129,10 +147,17 @@ class Setup(tkinter.Frame):
                 self.listeningSocket.bind(self.socketParams)
                 self.listeningSocket.listen(5)
                 cliSoc, p = self.listeningSocket.accept()
-                vi = encrypt.Vigenere((65,122), "A", False)
+                secretStr = self.encryptionParams.secretBox.get()
+                locksmith = encrypt.VigLocksmith(int(self.encryptionParams.gBox.get()), int(self.encryptionParams.nBox.get()), secretStr)
+                
+                recKey = str(cliSoc.recv(4096), "utf-8")
+                print("Key from other: " +recKey)
+                vi = encrypt.Vigenere((65,122), locksmith.makeKey(recKey), False)
+
+                cliSoc.send(bytearray(locksmith.makeIntermediateVal(),"utf-8"))
                 
                 self.grid_forget()
-                self.parent.chat = Chat(cliSoc, self.parent)
+                self.parent.chat = Chat(cliSoc, encrypter = vi, master=self.parent)
             except OSError:
                 #print("OS ERROR")
                 raise #We will close the socket from elsewhere which will cause exception

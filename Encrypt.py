@@ -102,7 +102,7 @@ class Vigenere:
             exceptOutOfRange(bool): If true, will raise value error when
             processing input character out of range. Else will just return the
             char.
-            key(int): Vigenere cipher key
+            key(string): Vigenere cipher key
 
         """
 
@@ -243,7 +243,7 @@ class VigLocksmith(Locksmith):
 
     """
 
-    def __init__(self, g, n, randomNums):
+    def __init__(self, g, n, initialValue):
         """
         Initializes the Vigenere Locksmith. 
 
@@ -255,7 +255,7 @@ class VigLocksmith(Locksmith):
         """
         self.g =g
         self.n = n
-        self.randomNums = randomNums
+        self.initialValue = initialValue
         self.intermValCalced = False
         self.keyCalced = False
 
@@ -270,7 +270,7 @@ class VigLocksmith(Locksmith):
         if self.intermValCalced:
             raise ValueError("Intermediate Value should only be calculated once.")
         self.intermValCalced = True 
-        return [(self.g**randNum)%self.n for randNum in self.randomNums]
+        return VigLocksmith.numsToKey([(self.g**randNum)%self.n for randNum in VigLocksmith.keyToNums(self.initialValue, 64)],64)
 
     def makeKey(self, otherContribution):
         """Creates a session key using secret list and contribution list from other party.
@@ -278,7 +278,7 @@ class VigLocksmith(Locksmith):
         To discourage session key re-use, may only be called once.
 
         Args:
-          otherContribution(list of ints): The result of other party's intermediate value 
+          otherContribution(string): The result of other party's intermediate value 
 
         Returns:
           The session key as a string.
@@ -289,17 +289,31 @@ class VigLocksmith(Locksmith):
         if self.keyCalced:
             raise ValueError("Key should only be calculated once.")
         self.keyCalced = True
-        asNums = [(pair[1]**pair[0]) % self.n for pair in zip(self.randomNums, otherContribution)]
+        asNums = [(pair[1]**pair[0]) % self.n for pair in zip(VigLocksmith.keyToNums(self.initialValue,64), VigLocksmith.keyToNums(otherContribution,64))]
         return "".join(map(convert,asNums))
+
+    @staticmethod
+    def keyToNums(string,offset):
+        converter = lambda c:ord(c)-offset
+        return list(map(converter, string))
+    
+    @staticmethod
+    def numsToKey(nums, offset):
+        print("RECEIVED " + str(nums))
+        converter = lambda i: chr(i + offset)
+        return "".join(list(map(converter,nums)))
         
 if __name__=="__main__":
     alice = Locksmith(5,23,6)
     bob = Locksmith(5,23,15)
+    print(alice.makeIntermediateVal())
     #print(bob.makeKey(alice.makeIntermediateVal()))
     #print(alice.makeKey(bob.makeIntermediateVal()))
     #print(alice.makeIntermediateVal())
     #print(bob.makeIntermediateVal())
-    vinny = VigLocksmith(5,23,[6,15])
-    maria = VigLocksmith(5,23,[15,6])
-    print(vinny.makeKey(maria.makeIntermediateVal()))
-    print(maria.makeKey(vinny.makeIntermediateVal()))
+    v = VigLocksmith(5,23,"F")
+    #print(v.makeIntermediateVal())
+    v2= VigLocksmith(5,23,"O")
+    print(v.makeKey(v2.makeIntermediateVal()))
+    print(v2.makeKey(v.makeIntermediateVal()))
+    
