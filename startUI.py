@@ -81,10 +81,8 @@ class Chat(tkinter.Frame):
             messageFromOther = self.soc.recv(4096)
             messageFromOther = str(messageFromOther,"utf-8")
             if self.encrypter is not None:
-                print("message from other original: "+messageFromOther)
                 messageFromOther = self.encrypter.decrypt(messageFromOther)
-                print("After decryption: " + messageFromOther)
-            self.messageQueue.put(messageFromOther)
+            self.messageQueue.put("Them: " + messageFromOther + "\n\n")
 
             
 class Setup(tkinter.Frame):
@@ -136,6 +134,7 @@ class Setup(tkinter.Frame):
 
         self.urlBox = tkinter.Entry(self)
         self.urlBox.grid(row=2, column=1)
+        self.urlBox.bind("<Key>", self.keyPress)
 
         self.connectButton = tkinter.Button(self, text="Connect", command = self.connectClicked)
         self.connectButton.grid(row=3, column=1, sticky = tkinter.E)
@@ -163,6 +162,12 @@ class Setup(tkinter.Frame):
                 raise #We will close the socket from elsewhere which will cause exception
             except:
                 raise
+
+    def keyPress(self, event):
+        c = event.char
+        if c == "\r":
+            self.connectClicked()
+            
 class EncryptionParams(tkinter.Frame):
 
     def __init__(self, master=None):
@@ -193,7 +198,7 @@ class EncryptionParams(tkinter.Frame):
 
         self.secretBox = tkinter.Entry(self)
         self.secretBox.grid(row=4, column=1)
-        self.secretBox.insert(0, primes.randomSecret())
+        self.secretBox.insert(0, primes.randomSecret()) 
 
 #Slightly modified from http://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread-in-python
 class StoppableThread(threading.Thread):
