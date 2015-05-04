@@ -11,7 +11,7 @@ class Application(tkinter.Frame):
         tkinter.Frame.__init__(self,master)
         #self.chat = Chat(self)
         #self.chat.grid(row = 0, column = 0)
-        self.setup = Setup(self, ("127.0.0.1",25123))
+        self.setup = Setup(self, ("127.0.0.1",25124))
         self.setup.grid(row = 0, column =0)
 
     

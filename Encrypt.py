@@ -176,7 +176,7 @@ class Locksmith:
     Generates keys for Diffie-Hellman. Vulnerable to man-in-the-middle attacks.
 
     Generates keys based on g and n. Can generate secret value or work with
-    passed in value.
+    passed in value. g should be a primitive root of n
     In order to discourage key re-use (because the same session key will
     result each time) the intermediate values and keys can only be calculated
     once. You should create a new secret for each communication.
@@ -199,7 +199,7 @@ class Locksmith:
         """
         if randNum == None:
             raise NotImplemented()
-            randNum = 3 #CHANGE
+            
         self.randNum = randNum
         if not primes.isPrimitiveRoot(g, n):
             raise ValueError(str(g) + "is not a primitive root of "+str(n))
@@ -254,6 +254,8 @@ class VigLocksmith(Locksmith):
             randNum(int): List of secret nums. Length of randomNums must be same for both parties
           
         """
+        if not primes.isPrimitiveRoot(g, n):
+            raise ValueError(str(g) + "is not a primitive root of "+str(n))
         self.g =g
         self.n = n
         self.initialValue = initialValue
